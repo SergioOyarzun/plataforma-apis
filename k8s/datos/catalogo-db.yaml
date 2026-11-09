@@ -1,0 +1,21 @@
+# Namespace propio para las bases de datos
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: datos
+---
+# El "formulario lleno": le pedimos al operador una base PostgreSQL
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: catalogo-db
+  namespace: datos
+spec:
+  instances: 2          # 1 primario + 1 réplica, idealmente en nodos distintos
+  smartShutdownTimeout: 15   # espera máximo 15 s a los clientes antes de forzar
+  storage:
+    size: 1Gi           # un disco (PVC) de 1 GiB por instancia
+  bootstrap:
+    initdb:
+      database: catalogo  # crea esta base al iniciar
+      owner: catalogo     # y este usuario como dueño
