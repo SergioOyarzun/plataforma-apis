@@ -14,9 +14,6 @@ on:
       - "apis/catalogo-py/**"
       - ".github/workflows/catalogo.yml"
   pull_request:                             # en cada PR: prueba, pero NO publica
-    paths:
-      - "apis/catalogo-py/**"
-      - ".github/workflows/catalogo.yml"
   workflow_dispatch:                        # botón "Run workflow" para lanzarlo a mano
 
 # Permisos mínimos por defecto: solo leer el código
