@@ -1,0 +1,88 @@
+# =====================================================================
+# CI de la API catálogo
+# Pruebas → build → escaneo Trivy → publicación en GHCR
+# =====================================================================
+name: catalogo
+
+# ---------------------------------------------------------------------
+# Cuándo se ejecuta
+# ---------------------------------------------------------------------
+on:
+  push:
+    branches: [main]
+    paths:                                  # solo si cambia catálogo o este archivo
+      - "apis/catalogo-py/**"
+      - ".github/workflows/catalogo.yml"
+  pull_request:                             # en cada PR: prueba, pero NO publica
+    paths:
+      - "apis/catalogo-py/**"
+      - ".github/workflows/catalogo.yml"
+  workflow_dispatch:                        # botón "Run workflow" para lanzarlo a mano
+
+# Permisos mínimos por defecto: solo leer el código
+permissions:
+  contents: read
+
+env:
+  IMAGEN: ghcr.io/sergiooyarzun/catalogo    # el nombre de una imagen va en minúsculas
+
+jobs:
+  # -------------------------------------------------------------------
+  # Job 1: pruebas (lo que hacías con uv run pytest)
+  # -------------------------------------------------------------------
+  pruebas:
+    runs-on: ubuntu-latest                  # una máquina Ubuntu nueva y limpia
+    defaults:
+      run:
+        working-directory: apis/catalogo-py
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v5
+
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Instalar dependencias (exactas, desde uv.lock)
+        run: uv sync --locked
+
+      - name: Correr las pruebas
+        run: uv run pytest -v
+
+  # -------------------------------------------------------------------
+  # Job 2: imagen (solo corre si las pruebas pasaron)
+  # -------------------------------------------------------------------
+  imagen:
+    needs: pruebas
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write                       # permiso para publicar en GHCR
+    defaults:
+      run:
+        working-directory: apis/catalogo-py
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v5
+
+      - name: Calcular el tag (hash corto del commit)
+        run: echo "TAG=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - name: Construir la imagen
+        run: docker build -t "$IMAGEN:$TAG" .
+
+      - name: Escanear con Trivy (falla si hay CRITICAL con parche)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image --scanners vuln \
+            --severity CRITICAL --ignore-unfixed --exit-code 1 \
+            "$IMAGEN:$TAG"
+
+      - name: Iniciar sesión en GHCR
+        if: github.event_name != 'pull_request'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Publicar la imagen
+        if: github.event_name != 'pull_request'
+        run: |
+          docker push "$IMAGEN:$TAG"
+          echo "Publicada: $IMAGEN:$TAG" >> "$GITHUB_STEP_SUMMARY"
