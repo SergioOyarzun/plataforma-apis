@@ -15,12 +15,14 @@ spec:
       labels:
         app: catalogo
     spec:
+      imagePullSecrets:              # NUEVO: credenciales para descargar de GHCR
+        - name: ghcr-pull
       securityContext:
         runAsNonRoot: true
-        runAsUser: 10001
+        runAsUser: 10001    
       containers:
         - name: catalogo
-          image: plataforma-registry:5050/catalogo:0.2.2
+          image: ghcr.io/sergiooyarzun/catalogo:8e57fbe
           ports:
             - name: http
               containerPort: 8000
